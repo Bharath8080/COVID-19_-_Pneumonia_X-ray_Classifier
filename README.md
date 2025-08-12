@@ -5,7 +5,7 @@
 ![TensorFlow](https://img.shields.io/badge/Framework-TensorFlow/keras-FF6F00?logo=tensorflow)
 ![License](https://img.shields.io/badge/License-MIT-lightgrey)
 
-https://github.com/Bharath8080/Covid-19-Pneumonia_X-ray_Classifier/blob/main/assets/main.gif
+![Image](https://github.com/user-attachments/assets/ccbc968e-7f83-448a-aab8-a476fba96726)
 
 A deep learning-based web application that classifies chest X-ray images into three categories: COVID-19, Normal, and Viral Pneumonia. The application uses a custom CNN model built with TensorFlow and Keras, and provides a user-friendly interface using Streamlit.
 
