@@ -5,3 +5,4 @@ streamlit>=1.48.0
 matplotlib
 Pillow
 scikit-learn
+protobuf==6.31.1
