@@ -2,10 +2,15 @@ import streamlit as st
 import cv2
 import numpy as np
 import pickle
+import sys
 from tensorflow.keras.models import load_model
 from PIL import Image
 import matplotlib.pyplot as plt
 import io
+
+# Set OpenCV to use headless backend if needed
+if 'cv2.cv2' in sys.modules:
+    cv2 = sys.modules['cv2.cv2']
 
 # Set page configuration
 st.set_page_config(
