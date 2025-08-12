@@ -1,6 +1,6 @@
-tensorflow>=2.20.0
-opencv-python-headless>=4.8.0
-numpy>=1.24.0
+tensorflow
+opencv-python-headless
+numpy
 matplotlib
-Pillow>=10.0.0
+Pillow
 scikit-learn
