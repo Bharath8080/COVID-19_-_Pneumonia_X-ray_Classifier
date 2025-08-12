@@ -1,7 +1,11 @@
 tensorflow
-opencv-python-headless
 numpy
 matplotlib
 Pillow
 scikit-learn
+flask
+werkzeug
+opencv-python
+opencv-python-headless
+
 
