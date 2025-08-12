@@ -1,11 +1,10 @@
-tensorflow
-numpy
 matplotlib
-Pillow
-scikit-learn
-flask
-werkzeug
 opencv-python
-opencv-python-headless
-
+flask==2.3.3
+opencv-python-headless==4.8.0.76
+numpy==1.23.5
+pillow==10.0.0
+werkzeug==2.3.7
+scikit-learn==1.3.0
+tensorflow==2.15.0
 
