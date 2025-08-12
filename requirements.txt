@@ -1,0 +1,6 @@
+tensorflow>=2.12.0
+opencv-python
+numpy
+streamlit
+matplotlib
+scikit-learn
