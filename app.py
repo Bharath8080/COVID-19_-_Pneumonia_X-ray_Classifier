@@ -2,10 +2,15 @@ import streamlit as st
 import cv2
 import numpy as np
 import pickle
+import sys
 from tensorflow.keras.models import load_model
 from PIL import Image
 import matplotlib.pyplot as plt
 import io
+
+# Set OpenCV to use headless backend if needed
+if 'cv2.cv2' in sys.modules:
+    cv2 = sys.modules['cv2.cv2']
 
 # Set page configuration
 st.set_page_config(
@@ -156,15 +161,27 @@ def display_prediction_result(predicted_label, confidence_score, class_probabili
         st.markdown(f'<div class="metric-value">{class_probabilities["Pneumonia"]:.2f}%</div>', unsafe_allow_html=True)
 
 def main():
-    # Add image to sidebar
+    # Add doctor image to sidebar at the top
     st.sidebar.image(
         "https://static.vecteezy.com/system/resources/thumbnails/060/046/568/small_2x/melancholic-gorgeous-doctor-examining-x-ray-no-background-with-transparent-background-luxury-free-png.png",
         use_container_width=True,
         caption="AI-Powered X-ray Analysis"
     )
     
+    # Add model metrics to sidebar below the image
+    with st.sidebar.expander("📈 Model Performance", expanded=True):
+        st.markdown("""
+        *Test Set Results:*
+        - *Overall Accuracy:* 95.38%
+        - *COVID-19:* Precision: 92.08%, Recall: 91.70%
+        - *Normal:* Precision: 96.35%, Recall: 97.16%
+        - *Pneumonia:* Precision: 96.86%, Recall: 91.82%
+        
+        Trained on 15,153 images, tested on 3,031 images.
+        """)
+    
     # Main header
-    st.markdown('<h1 class="main-header">🩺 COVID-19 X-ray Classifier🫁🩻</h1>', unsafe_allow_html=True)
+    st.markdown('<h2 class="main-header">🩺 COVID-19 & Pneumonia X-ray Classifier 🦠🫁</h2>', unsafe_allow_html=True)
     
     # Load model and encoder
     model, label_encoder = load_model_and_encoder()
@@ -173,15 +190,18 @@ def main():
         st.error("❌ Failed to load model files. Please check if the model files are present.")
         return
     
-    st.success("✅ Model loaded successfully!")
+    # st.success("✅ Model loaded successfully!")
     
-    # File uploader
-    st.header("📤 Upload X-ray Image")
-    uploaded_file = st.file_uploader(
-        "Choose a chest X-ray image...",
-        type=['png', 'jpg', 'jpeg'],
-        help="Upload a clear chest X-ray image for analysis"
-    )
+    # File uploader - centered
+    st.markdown("<h3 style='text-align: center;'>📤 Upload X-ray Image</h3>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        uploaded_file = st.file_uploader(
+            "Choose a chest X-ray image...",
+            type=['png', 'jpg', 'jpeg'],
+            help="Upload a clear chest X-ray image for analysis",
+            label_visibility="collapsed"
+        )
     
     if uploaded_file is not None:
         # Create two columns for image display and results
@@ -218,25 +238,17 @@ def main():
                 except Exception as e:
                     st.error(f"❌ Error processing image: {str(e)}")
         
-        # Additional information
-        st.header("⚠ Important Disclaimer")
-        st.warning("""
-        *Medical Disclaimer:* This AI tool is for educational and research purposes only. 
-        It should NOT be used as a substitute for professional medical advice, diagnosis, or treatment. 
-        Always consult with qualified healthcare professionals for medical decisions.
-        """)
-        
-        # Model performance metrics
-        with st.expander("📈 Model Performance Metrics"):
-            st.markdown("""
-            *Test Set Results:*
-            - *Overall Accuracy:* 95.38%
-            - *COVID-19:* Precision: 92.08%, Recall: 91.70%
-            - *Normal:* Precision: 96.35%, Recall: 97.16%
-            - *Pneumonia:* Precision: 96.86%, Recall: 91.82%
-            
-            The model was trained on 15,153 images and tested on 3,031 images.
+        # Additional information - centered
+        st.markdown("<h2 style='text-align: center;'>⚠ Important Disclaimer</h2>", unsafe_allow_html=True)
+        col1, col2, col3 = st.columns([1, 3, 1])
+        with col2:
+            st.warning("""
+            *Medical Disclaimer:* This AI tool is for educational and research purposes only. 
+            It should NOT be used as a substitute for professional medical advice, diagnosis, or treatment. 
+            Always consult with qualified healthcare professionals for medical decisions.
             """)
+        
+
 
 if __name__ == "__main__":
     main()
