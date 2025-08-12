@@ -1,37 +1,33 @@
-# Use official Python image as base
-FROM python:3.10-slim
+# Use an official Python runtime as the base image
+FROM python:3.9-slim
 
-# Set working directory
+# Set the working directory in the container
 WORKDIR /app
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    STREAMLIT_SERVER_PORT=8501 \
-    STREAMLIT_SERVER_HEADLESS=true \
-    STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
+# Install system dependencies required for OpenCV and other packages
+RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
     libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first to leverage Docker cache
-COPY requirements.txt .
+# Copy the requirements file
+COPY requirements_flask.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements_flask.txt
 
-# Copy the rest of the application
+# Copy the application code
 COPY . .
 
-# Expose the port Streamlit runs on
-EXPOSE 8501
+# Create the uploads directory
+RUN mkdir -p uploads
 
-# Command to run the application
-CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Make port 5000 available to the world outside this container
+EXPOSE 5000
+
+# Set environment variables
+ENV FLASK_APP=app_new.py
+ENV FLASK_ENV=production
+
+# Run the application
+CMD ["python", "app_new.py"]

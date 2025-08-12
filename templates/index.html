@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>COVID-19 X-ray Classifier</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+        .main-header {
+            font-size: 2.5rem;
+            color: #2E86AB;
+            text-align: center;
+            margin-bottom: 2rem;
+            font-weight: bold;
+        }
+        .upload-section {
+            border: 2px dashed #dee2e6;
+            border-radius: 10px;
+            padding: 2rem;
+            text-align: center;
+            margin-bottom: 2rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-section:hover {
+            border-color: #2E86AB;
+            background-color: #f8f9fa;
+        }
+        .preview-image {
+            max-width: 100%;
+            max-height: 400px;
+            margin: 1rem 0;
+            border-radius: 8px;
+            display: none;
+        }
+        .prediction-box {
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin: 1.5rem 0;
+            text-align: center;
+            font-size: 1.2rem;
+            display: none;
+        }
+        .covid-prediction {
+            background-color: #ffebee;
+            border: 2px solid #f44336;
+            color: #c62828;
+        }
+        .normal-prediction {
+            background-color: #e8f5e9;
+            border: 2px solid #4caf50;
+            color: #2e7d32;
+        }
+        .pneumonia-prediction {
+            background-color: #fff3e0;
+            border: 2px solid #ff9800;
+            color: #f57c00;
+        }
+        .confidence-text {
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin-top: 1rem;
+        }
+
+        .emoji {
+            font-size: 1.5em;
+            margin-right: 0.5rem;
+        }
+        .btn-primary {
+            background-color: #2E86AB;
+            border: none;
+            padding: 0.6rem 1.5rem;
+            font-size: 1.1rem;
+        }
+        .btn-primary:hover {
+            background-color: #1a5f7d;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 1rem 0;
+        }
+        .spinner-border {
+            width: 3rem; 
+            height: 3rem;
+        }
+        .file-input {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="main-header">COVID-19 X-ray Classifier</h1>
+        
+        <div class="row">
+            <div class="col-md-8 offset-md-2">
+                <div class="upload-section" id="dropZone">
+                    <input type="file" id="fileInput" class="file-input" accept="image/*">
+                    <div id="uploadContent">
+                        <i class="fas fa-cloud-upload-alt fa-3x mb-3" style="color: #2E86AB;"></i>
+                        <h4>Drag & Drop X-ray Image Here</h4>
+                        <p class="text-muted">or click to browse files</p>
+                    </div>
+                    <img id="preview" class="preview-image" alt="Preview">
+                </div>
+
+                <div class="text-center mb-4">
+                    <button id="predictBtn" class="btn btn-primary btn-lg" disabled>Analyze X-ray</button>
+                </div>
+
+                <div class="loading" id="loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Analyzing X-ray image...</p>
+                </div>
+
+                <div id="predictionResult" class="prediction-box">
+                    <h3><span id="predictionEmoji" class="emoji"></span> Prediction: <span id="predictionLabel"></span></h3>
+                    <div class="confidence-text">
+                        Confidence: <span id="confidenceScore"></span>%
+                    </div>
+                </div>
+
+
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const preview = document.getElementById('preview');
+        const predictBtn = document.getElementById('predictBtn');
+        const loading = document.getElementById('loading');
+        const predictionResult = document.getElementById('predictionResult');
+        const predictionLabel = document.getElementById('predictionLabel');
+        const confidenceScore = document.getElementById('confidenceScore');
+        let selectedFile = null;
+
+        // Handle drag and drop events
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight() {
+            dropZone.style.borderColor = '#2E86AB';
+            dropZone.style.backgroundColor = '#f0f8ff';
+        }
+
+        function unhighlight() {
+            dropZone.style.borderColor = '#dee2e6';
+            dropZone.style.backgroundColor = '';
+        }
+
+        // Handle dropped files
+        dropZone.addEventListener('drop', handleDrop, false);
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        }
+
+        fileInput.addEventListener('change', function() {
+            handleFiles(this.files);
+        });
+
+        function handleFiles(files) {
+            if (files.length > 0) {
+                selectedFile = files[0];
+                if (selectedFile.type.match('image.*')) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        preview.src = e.target.result;
+                        preview.style.display = 'block';
+                        predictBtn.disabled = false;
+                        predictionResult.style.display = 'none';
+                    }
+                    reader.readAsDataURL(selectedFile);
+                } else {
+                    alert('Please select an image file.');
+                }
+            }
+        }
+
+        // Handle prediction
+        predictBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            loading.style.display = 'block';
+            predictionResult.style.display = 'none';
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('Prediction failed');
+                }
+
+                const result = await response.json();
+                displayPrediction(result);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error analyzing the X-ray. Please try again.');
+            } finally {
+                loading.style.display = 'none';
+            }
+        });
+
+        function displayPrediction(result) {
+            // Update main prediction
+            predictionLabel.textContent = result.prediction;
+            document.getElementById('predictionEmoji').textContent = result.emoji;
+            confidenceScore.textContent = result.confidence.toFixed(2);
+            
+            // Reset all classes
+            predictionResult.className = 'prediction-box';
+            
+            // Add the appropriate class based on prediction
+            if (result.prediction.toLowerCase().includes('covid')) {
+                predictionResult.classList.add('covid-prediction');
+            } else if (result.prediction.toLowerCase().includes('normal')) {
+                predictionResult.classList.add('normal-prediction');
+            } else if (result.prediction.toLowerCase().includes('pneumonia')) {
+                predictionResult.classList.add('pneumonia-prediction');
+            }
+            
+            // Show the prediction result
+            predictionResult.style.display = 'block';
+            
+            // Scroll to results
+            predictionResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    </script>
+</body>
+</html>
