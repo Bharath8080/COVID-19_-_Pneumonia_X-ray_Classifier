@@ -156,66 +156,87 @@ def display_prediction_result(predicted_label, confidence_score, class_probabili
         st.metric("Pneumonia", f"{class_probabilities['Pneumonia']:.1f}%")
 
 def main():
-    # Sidebar
+    # Add image to sidebar
     st.sidebar.image(
         "https://static.vecteezy.com/system/resources/thumbnails/060/046/568/small_2x/melancholic-gorgeous-doctor-examining-x-ray-no-background-with-transparent-background-luxury-free-png.png",
         use_container_width=True,
         caption="AI-Powered X-ray Analysis"
     )
     
-    with st.sidebar.expander("📈 Model Performance"):
-        st.markdown("""
-        *Test Results:*
-        - Overall Accuracy: 95.38%
-        - COVID-19: 92.08% Precision
-        - Normal: 96.35% Precision
-        - Pneumonia: 96.86% Precision
-        """)
-    
     # Main header
-    st.markdown('<h1 class="main-header">🩺 COVID-19 & Pneumonia X-ray Classifier</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">🩺 COVID-19 X-ray Classifier🫁🩻</h1>', unsafe_allow_html=True)
     
-    # Load model
+    # Load model and encoder
     model, label_encoder = load_model_and_encoder()
     
     if model is None or label_encoder is None:
-        st.error("❌ Could not load model files. Please try refreshing the page.")
+        st.error("❌ Failed to load model files. Please check if the model files are present.")
         return
     
+    st.success("✅ Model loaded successfully!")
+    
     # File uploader
-    st.markdown("<h3 style='text-align: center;'>📤 Upload X-ray Image</h3>", unsafe_allow_html=True)
+    st.header("📤 Upload X-ray Image")
     uploaded_file = st.file_uploader(
         "Choose a chest X-ray image...",
         type=['png', 'jpg', 'jpeg'],
-        label_visibility="collapsed"
+        help="Upload a clear chest X-ray image for analysis"
     )
     
     if uploaded_file is not None:
+        # Create two columns for image display and results
         col1, col2 = st.columns([1, 1])
         
         with col1:
+            # Display uploaded image with fixed height
             st.subheader("📸 Uploaded Image")
             image = Image.open(uploaded_file)
-            st.image(image, caption="Uploaded X-ray", use_container_width=True)
+            # Resize image for preview (maintaining aspect ratio)
+            max_height = 300
+            width_percent = (max_height / float(image.size[1]))
+            new_width = int((float(image.size[0]) * float(width_percent)))
+            image = image.resize((new_width, max_height), Image.Resampling.LANCZOS)
+            st.image(image, caption="Uploaded X-ray", use_container_width=False, width=350)
         
         with col2:
+            # Make prediction
             st.subheader("🔍 Analysis Results")
             
-            with st.spinner("Analyzing..."):
+            with st.spinner("Analyzing X-ray image..."):
                 try:
-                    image_input, _ = preprocess_image(image)
+                    # Preprocess image
+                    image_input, processed_image = preprocess_image(image)
+                    
+                    # Make prediction
                     predicted_label, confidence_score, class_probabilities = predict_image(
                         model, label_encoder, image_input
                     )
+                    
+                    # Display results
                     display_prediction_result(predicted_label, confidence_score, class_probabilities)
+                    
                 except Exception as e:
                     st.error(f"❌ Error processing image: {str(e)}")
         
-        # Disclaimer
+        # Additional information
+        st.header("⚠ Important Disclaimer")
         st.warning("""
-        *Medical Disclaimer:* This tool is for educational purposes only. 
-        Not a substitute for professional medical advice. Always consult healthcare professionals.
+        *Medical Disclaimer:* This AI tool is for educational and research purposes only. 
+        It should NOT be used as a substitute for professional medical advice, diagnosis, or treatment. 
+        Always consult with qualified healthcare professionals for medical decisions.
         """)
+        
+        # Model performance metrics
+        with st.expander("📈 Model Performance Metrics"):
+            st.markdown("""
+            *Test Set Results:*
+            - *Overall Accuracy:* 95.38%
+            - *COVID-19:* Precision: 92.08%, Recall: 91.70%
+            - *Normal:* Precision: 96.35%, Recall: 97.16%
+            - *Pneumonia:* Precision: 96.86%, Recall: 91.82%
+            
+            The model was trained on 15,153 images and tested on 3,031 images.
+            """)
 
 if __name__ == "__main__":
     main()
