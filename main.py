@@ -254,9 +254,9 @@ def main():
         col1, col2, col3 = st.columns([1, 3, 1])
         with col2:
             st.warning("""
-            *Medical Disclaimer:* This AI tool is for educational and research purposes only. 
-            It should NOT be used as a substitute for professional medical advice, diagnosis, or treatment. 
-            Always consult with qualified healthcare professionals for medical decisions.
+            **Medical Disclaimer**: This AI is for educational use only.
+            Not a substitute for professional medical advice, diagnosis, or treatment.
+            Always consult a qualified healthcare provider.
             """)
         
 
