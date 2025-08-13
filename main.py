@@ -250,7 +250,7 @@ def main():
                     st.error(f"❌ Error processing image: {str(e)}")
         
         # Additional information - centered
-        st.markdown("<h2 style='text-align: center;'> Important Disclaimer</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center;'> ⚠Important Disclaimer</h2>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1, 3, 1])
         with col2:
             st.warning("""
