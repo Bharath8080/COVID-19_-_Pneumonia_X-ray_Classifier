@@ -128,13 +128,16 @@ def predict_image(model, label_encoder, image_input):
 
 def display_prediction_result(predicted_label, confidence_score, class_probabilities):
     """Display the prediction result with appropriate styling"""
-    # Determine styling based on prediction
+    # Determine the CSS class based on prediction
     if predicted_label == "Covid-19":
-        css_class, emoji = "covid-prediction", "🦠"
+        css_class = "covid-prediction"
+        emoji = "🦠"
     elif predicted_label == "Normal":
-        css_class, emoji = "normal-prediction", "✅"
-    else:
-        css_class, emoji = "pneumonia-prediction", "🫁"
+        css_class = "normal-prediction"
+        emoji = "✅"
+    else:  # Pneumonia
+        css_class = "pneumonia-prediction"
+        emoji = "🫁"
     
     # Display main prediction
     st.markdown(f"""
@@ -144,16 +147,29 @@ def display_prediction_result(predicted_label, confidence_score, class_probabili
     </div>
     """, unsafe_allow_html=True)
     
-    # Display class probabilities
+    # Display all class probabilities with colored metrics
     st.subheader("📊 Class Probabilities")
     col1, col2, col3 = st.columns(3)
     
+    # Custom CSS for metrics
+    st.markdown("""
+    <style>
+        .covid-metric { color: #c62828 !important; font-weight: bold !important; }
+        .normal-metric { color: #2e7d32 !important; font-weight: bold !important; }
+        .pneumonia-metric { color: #f57c00 !important; font-weight: bold !important; }
+        .metric-value { font-size: 1.2rem !important; }
+    </style>
+    """, unsafe_allow_html=True)
+    
     with col1:
-        st.metric("COVID-19", f"{class_probabilities['Covid-19']:.1f}%")
+        st.markdown(f'<div class="covid-metric">COVID-19</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-value">{class_probabilities["Covid-19"]:.2f}%</div>', unsafe_allow_html=True)
     with col2:
-        st.metric("Normal", f"{class_probabilities['Normal']:.1f}%")
+        st.markdown(f'<div class="normal-metric">Normal</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-value">{class_probabilities["Normal"]:.2f}%</div>', unsafe_allow_html=True)
     with col3:
-        st.metric("Pneumonia", f"{class_probabilities['Pneumonia']:.1f}%")
+        st.markdown(f'<div class="pneumonia-metric">Pneumonia</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-value">{class_probabilities["Pneumonia"]:.2f}%</div>', unsafe_allow_html=True)
 
 def main():
     # Add doctor image to sidebar at the top
