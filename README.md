@@ -11,7 +11,7 @@ A deep learning-based web application that classifies chest X-ray images into th
 
 ## 🚀 Demo
 
-Try the live demo: [https://covid19x.streamlit.app/](https://covid19x.streamlit.app/)
+Try the live demo: [https://covid19x.streamlit.app/](https://covid19xray.streamlit.app/)
 
 ## 📊 Model Performance
 
