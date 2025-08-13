@@ -217,5 +217,5 @@ def main():
         Not a substitute for professional medical advice. Always consult healthcare professionals.
         """)
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     main()
