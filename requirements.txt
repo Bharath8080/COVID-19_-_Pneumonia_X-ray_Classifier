@@ -6,4 +6,4 @@ pillow
 werkzeug
 scikit-learn
 tensorflow
-
+streamlit
