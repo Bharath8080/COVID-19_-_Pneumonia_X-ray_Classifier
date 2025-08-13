@@ -56,40 +56,55 @@ st.markdown("""
 
 @st.cache_resource
 def load_model_and_encoder():
-    """Load the trained model and label encoder from GitHub"""
+    """Load the trained model and label encoder with proper LFS handling"""
     model_path = "CNN_Covid19_Xray_Version.h5"
     encoder_path = "Label_encoder.pkl"
     
-    # GitHub raw URLs for direct download
-    model_url = "https://github.com/Bharath8080/Covid-19-Pneumonia_X-ray_Classifier/raw/main/CNN_Covid19_Xray_Version.h5"
-    encoder_url = "https://github.com/Bharath8080/Covid-19-Pneumonia_X-ray_Classifier/raw/main/Label_encoder.pkl"
+    # Try multiple URL strategies for GitHub LFS files
+    urls_to_try = [
+        # Strategy 1: GitHub LFS direct download (if properly configured)
+        {
+            "model": "https://github.com/Bharath8080/Covid-19-Pneumonia_X-ray_Classifier/raw/main/CNN_Covid19_Xray_Version.h5",
+            "encoder": "https://github.com/Bharath8080/Covid-19-Pneumonia_X-ray_Classifier/raw/main/Label_encoder.pkl"
+        },
+        # Strategy 2: GitHub releases (if you upload there)
+        {
+            "model": "https://github.com/Bharath8080/Covid-19-Pneumonia_X-ray_Classifier/releases/download/v1.0/CNN_Covid19_Xray_Version.h5",
+            "encoder": "https://github.com/Bharath8080/Covid-19-Pneumonia_X-ray_Classifier/releases/download/v1.0/Label_encoder.pkl"
+        }
+    ]
     
-    def download_file(url, filename):
-        """Download file from URL if it doesn't exist locally"""
-        if os.path.exists(filename):
-            return True
-            
+    def download_file_with_validation(url, filename, min_size_mb=1):
+        """Download file and validate it's not empty/corrupted"""
         try:
-            st.info(f"🔄 Downloading {filename}... This may take a moment.")
+            st.info(f"🔄 Downloading {filename} from GitHub...")
             
-            # Create session with headers
+            # Setup session with proper headers
             session = requests.Session()
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'application/octet-stream',
+                'Accept-Encoding': 'identity'  # Prevent compression issues
             }
             
-            # Download with streaming for large files
+            # Download with streaming
             response = session.get(url, headers=headers, stream=True, timeout=300)
             response.raise_for_status()
             
-            # Get file size for progress tracking
-            total_size = int(response.headers.get('content-length', 0))
+            # Check if we got an LFS pointer file instead of the actual file
+            content_type = response.headers.get('content-type', '')
+            if 'text/plain' in content_type:
+                # This might be an LFS pointer file
+                first_chunk = next(response.iter_content(chunk_size=1024))
+                if b'version https://git-lfs.github.com/spec/v1' in first_chunk:
+                    st.warning(f"⚠️ Received LFS pointer for {filename}. File is stored with Git LFS.")
+                    return False
             
-            # Create progress bar
+            # Write file
+            total_size = int(response.headers.get('content-length', 0))
             progress_bar = st.progress(0)
             downloaded = 0
             
-            # Write file in chunks
             with open(filename, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
@@ -99,32 +114,82 @@ def load_model_and_encoder():
                             progress = downloaded / total_size
                             progress_bar.progress(progress)
             
-            progress_bar.empty()  # Remove progress bar
-            st.success(f"✅ {filename} downloaded successfully!")
+            progress_bar.empty()
+            
+            # Validate file size
+            file_size_mb = os.path.getsize(filename) / (1024 * 1024)
+            if filename.endswith('.h5') and file_size_mb < min_size_mb:
+                st.error(f"❌ {filename} is too small ({file_size_mb:.2f} MB). Expected larger model file.")
+                return False
+            
+            st.success(f"✅ {filename} downloaded successfully! ({file_size_mb:.2f} MB)")
             return True
             
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             st.error(f"❌ Failed to download {filename}: {str(e)}")
             return False
-        except Exception as e:
-            st.error(f"❌ Unexpected error downloading {filename}: {str(e)}")
-            return False
     
+    # Check if files already exist and are valid
+    files_exist = os.path.exists(model_path) and os.path.exists(encoder_path)
+    if files_exist:
+        model_size = os.path.getsize(model_path) / (1024 * 1024)
+        if model_size > 1:  # Model should be larger than 1MB
+            st.info("📁 Using existing model files...")
+        else:
+            files_exist = False
+    
+    # Download files if needed
+    if not files_exist:
+        success = False
+        
+        for i, urls in enumerate(urls_to_try):
+            st.info(f"🔄 Trying download strategy {i+1}...")
+            
+            # Try to download model
+            if download_file_with_validation(urls["model"], model_path):
+                # Try to download encoder
+                if download_file_with_validation(urls["encoder"], encoder_path, min_size_mb=0):
+                    success = True
+                    break
+            
+            # Clean up partial downloads
+            for file in [model_path, encoder_path]:
+                if os.path.exists(file):
+                    os.remove(file)
+        
+        if not success:
+            st.error("❌ All download strategies failed!")
+            st.info("🔧 **Solutions:**")
+            st.info("1. **Use GitHub Releases**: Upload your files as release assets")
+            st.info("2. **Use external hosting**: Google Drive, Dropbox, etc.")
+            st.info("3. **Contact repository owner** to ensure files are properly uploaded")
+            
+            # Show some debugging info
+            st.info("🐛 **Debug Info:**")
+            st.code(f"Current directory: {os.getcwd()}")
+            st.code(f"Directory contents: {os.listdir('.')}")
+            
+            return None, None
+    
+    # Load the model and encoder
     try:
-        # Download files if they don't exist
-        if not os.path.exists(model_path):
-            if not download_file(model_url, model_path):
-                return None, None
-        
-        if not os.path.exists(encoder_path):
-            if not download_file(encoder_url, encoder_path):
-                return None, None
-        
-        # Load the model and encoder
         st.info("🔄 Loading model and encoder...")
         
+        # Verify file sizes before loading
+        model_size = os.path.getsize(model_path) / (1024 * 1024)
+        encoder_size = os.path.getsize(encoder_path) / 1024
+        
+        st.info(f"📊 Model file: {model_size:.2f} MB")
+        st.info(f"📊 Encoder file: {encoder_size:.2f} KB")
+        
+        if model_size < 1:
+            st.error("❌ Model file is too small - likely corrupted or incomplete")
+            return None, None
+        
+        # Load model
         model = load_model(model_path)
         
+        # Load encoder
         with open(encoder_path, 'rb') as f:
             label_encoder = pickle.load(f)
         
@@ -133,16 +198,16 @@ def load_model_and_encoder():
         
     except Exception as e:
         st.error(f"❌ Error loading model: {str(e)}")
-        st.error("Please ensure the model files are compatible with your TensorFlow version.")
         
-        # Show file info for debugging
-        if os.path.exists(model_path):
-            model_size = os.path.getsize(model_path) / (1024 * 1024)  # MB
-            st.info(f"Model file size: {model_size:.2f} MB")
-        if os.path.exists(encoder_path):
-            encoder_size = os.path.getsize(encoder_path) / 1024  # KB
-            st.info(f"Encoder file size: {encoder_size:.2f} KB")
-            
+        # Provide specific error guidance
+        if "file signature not found" in str(e):
+            st.error("🔍 **Diagnosis**: The .h5 file is corrupted or not a valid Keras model")
+            st.info("💡 **Solution**: Re-upload the model file to GitHub properly")
+        elif "No module named" in str(e):
+            st.error("🔍 **Diagnosis**: Missing required dependencies")
+        else:
+            st.error("🔍 **Diagnosis**: Unknown error during model loading")
+        
         return None, None
 
 def preprocess_image(image, image_size=150):
@@ -258,16 +323,32 @@ def main():
     # Main header
     st.markdown('<h1 class="main-header">🩺 COVID-19 & Pneumonia X-ray Classifier 🫁🩻</h1>', unsafe_allow_html=True)
     
+    # Add file upload instructions
+    st.info("🚀 **First time setup**: The app will automatically download model files from GitHub. This may take a few minutes.")
+    
     # Load model and encoder
     model, label_encoder = load_model_and_encoder()
     
     if model is None or label_encoder is None:
-        st.error("❌ Failed to load model files from GitHub.")
-        st.info("🔧 **This could be due to:**")
-        st.info("• Network connectivity issues")
-        st.info("• GitHub rate limits")
-        st.info("• File corruption during download")
-        st.info("• TensorFlow version compatibility")
+        st.error("❌ Could not load model files.")
+        st.markdown("""
+        ### 🔧 **Immediate Solutions:**
+        
+        1. **GitHub Releases Approach** (Recommended):
+           - Go to your GitHub repo
+           - Click "Releases" → "Create a new release"
+           - Upload your .h5 and .pkl files as assets
+           - Update the code with release URLs
+        
+        2. **Alternative Hosting**:
+           - Upload to Google Drive (make public)
+           - Use Dropbox public links
+           - Try Hugging Face Model Hub
+        
+        3. **Local Files**:
+           - Download files manually from Kaggle
+           - Add directly to your GitHub repository (if <100MB)
+        """)
         return
     
     # File uploader - centered
