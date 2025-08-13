@@ -2,12 +2,10 @@ import streamlit as st
 import cv2
 import numpy as np
 import pickle
+import os
+import requests
 from tensorflow.keras.models import load_model
 from PIL import Image
-import matplotlib.pyplot as plt
-import io
-import requests
-import os
 
 # Set page configuration
 st.set_page_config(
@@ -16,7 +14,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS for better styling
+# Custom CSS for styling
 st.markdown("""
 <style>
     .main-header {
@@ -61,135 +59,64 @@ def load_model_and_encoder():
     encoder_path = "Label_encoder.pkl"
     
     def download_file(url, filename):
-        """Download file with progress indication"""
+        """Download file silently"""
         try:
-            # Create a progress bar
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            
-            status_text.text(f"Downloading {filename}...")
-            
             response = requests.get(url, stream=True, timeout=300)
             response.raise_for_status()
-            
-            total_size = int(response.headers.get('content-length', 0))
-            downloaded_size = 0
             
             with open(filename, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
-                        downloaded_size += len(chunk)
-                        if total_size > 0:
-                            progress = downloaded_size / total_size
-                            progress_bar.progress(progress)
-            
-            progress_bar.progress(1.0)
-            status_text.text(f"✅ {filename} downloaded successfully!")
             return True
-            
-        except Exception as e:
-            st.error(f"❌ Error downloading {filename}: {str(e)}")
+        except:
             return False
-        finally:
-            # Clean up progress indicators
-            try:
-                progress_bar.empty()
-                status_text.empty()
-            except:
-                pass
     
     # Check if files exist and are valid
-    files_need_download = False
-    
-    if not os.path.exists(model_path) or os.path.getsize(model_path) < 1024*1024:  # Model should be > 1MB
-        files_need_download = True
-        st.info("🔄 Model file not found or invalid. Downloading...")
-    
-    if not os.path.exists(encoder_path) or os.path.getsize(encoder_path) < 100:  # Encoder should be > 100 bytes
-        files_need_download = True
-        st.info("🔄 Encoder file not found or invalid. Downloading...")
-    
-    if files_need_download:
+    if not (os.path.exists(model_path) and os.path.exists(encoder_path) and 
+            os.path.getsize(model_path) > 1024*1024):  # Model should be > 1MB
+        
         # Download URLs
         model_url = "https://github.com/Bharath8080/Covid-19-Pneumonia_X-ray_Classifier/raw/main/CNN_Covid19_Xray_Version.h5"
         encoder_url = "https://github.com/Bharath8080/Covid-19-Pneumonia_X-ray_Classifier/raw/main/Label_encoder.pkl"
         
-        # Create download container
-        download_container = st.container()
-        
-        with download_container:
-            st.subheader("📥 Downloading Model Files")
-            
-            # Download model file
-            if not os.path.exists(model_path) or os.path.getsize(model_path) < 1024*1024:
-                if not download_file(model_url, model_path):
-                    return None, None
-            
-            # Download encoder file
-            if not os.path.exists(encoder_path) or os.path.getsize(encoder_path) < 100:
-                if not download_file(encoder_url, encoder_path):
-                    return None, None
+        # Try downloading
+        if not (download_file(model_url, model_path) and download_file(encoder_url, encoder_path)):
+            st.error("❌ Could not download model files. Please check your internet connection.")
+            return None, None
     
     # Load files
     try:
-        st.info("🔄 Loading model and encoder...")
         model = load_model(model_path)
         with open(encoder_path, 'rb') as f:
             label_encoder = pickle.load(f)
-        
-        st.success("✅ Model and encoder loaded successfully!")
         return model, label_encoder
-        
     except Exception as e:
         st.error(f"❌ Error loading model: {str(e)}")
-        # Try to remove corrupted files
-        try:
-            if os.path.exists(model_path):
-                os.remove(model_path)
-            if os.path.exists(encoder_path):
-                os.remove(encoder_path)
-            st.error("Corrupted files removed. Please refresh the page to re-download.")
-        except:
-            pass
         return None, None
 
 def preprocess_image(image, image_size=150):
     """Preprocess the uploaded image for prediction"""
-    # Convert PIL image to numpy array
     image_array = np.array(image)
     
-    # If image has 4 channels (RGBA), convert to RGB
+    # Handle different image formats
     if len(image_array.shape) == 3 and image_array.shape[2] == 4:
         image_array = cv2.cvtColor(image_array, cv2.COLOR_RGBA2RGB)
-    elif len(image_array.shape) == 3 and image_array.shape[2] == 3:
-        # Already RGB
-        pass
-    else:
-        # Convert grayscale to RGB
+    elif len(image_array.shape) == 2:
         image_array = cv2.cvtColor(image_array, cv2.COLOR_GRAY2RGB)
     
-    # Resize the image
+    # Resize and normalize
     image_resized = cv2.resize(image_array, (image_size, image_size))
-    
-    # Normalize pixel values
     image_normalized = image_resized / 255.0
-    
-    # Add batch dimension
     image_input = np.expand_dims(image_normalized, axis=0)
     
     return image_input, image_resized
 
 def predict_image(model, label_encoder, image_input):
     """Make prediction on the preprocessed image"""
-    # Predict
     predictions = model.predict(image_input, verbose=0)
-    
-    # Get predicted class and confidence
     predicted_index = np.argmax(predictions)
     confidence_score = predictions[0][predicted_index]
-    
-    # Decode the prediction
     predicted_label = label_encoder.inverse_transform([predicted_index])[0]
     
     # Get all class probabilities
@@ -201,16 +128,13 @@ def predict_image(model, label_encoder, image_input):
 
 def display_prediction_result(predicted_label, confidence_score, class_probabilities):
     """Display the prediction result with appropriate styling"""
-    # Determine the CSS class based on prediction
+    # Determine styling based on prediction
     if predicted_label == "Covid-19":
-        css_class = "covid-prediction"
-        emoji = "🦠"
+        css_class, emoji = "covid-prediction", "🦠"
     elif predicted_label == "Normal":
-        css_class = "normal-prediction"
-        emoji = "✅"
-    else:  # Pneumonia
-        css_class = "pneumonia-prediction"
-        emoji = "🫁"
+        css_class, emoji = "normal-prediction", "✅"
+    else:
+        css_class, emoji = "pneumonia-prediction", "🫁"
     
     # Display main prediction
     st.markdown(f"""
@@ -220,111 +144,78 @@ def display_prediction_result(predicted_label, confidence_score, class_probabili
     </div>
     """, unsafe_allow_html=True)
     
-    # Display all class probabilities with colored metrics
+    # Display class probabilities
     st.subheader("📊 Class Probabilities")
     col1, col2, col3 = st.columns(3)
     
-    # Custom CSS for metrics
-    st.markdown("""
-    <style>
-        .covid-metric { color: #c62828 !important; font-weight: bold !important; }
-        .normal-metric { color: #2e7d32 !important; font-weight: bold !important; }
-        .pneumonia-metric { color: #f57c00 !important; font-weight: bold !important; }
-        .metric-value { font-size: 1.2rem !important; }
-    </style>
-    """, unsafe_allow_html=True)
-    
     with col1:
-        st.markdown(f'<div class="covid-metric">COVID-19</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="metric-value">{class_probabilities["Covid-19"]:.2f}%</div>', unsafe_allow_html=True)
+        st.metric("COVID-19", f"{class_probabilities['Covid-19']:.1f}%")
     with col2:
-        st.markdown(f'<div class="normal-metric">Normal</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="metric-value">{class_probabilities["Normal"]:.2f}%</div>', unsafe_allow_html=True)
+        st.metric("Normal", f"{class_probabilities['Normal']:.1f}%")
     with col3:
-        st.markdown(f'<div class="pneumonia-metric">Pneumonia</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="metric-value">{class_probabilities["Pneumonia"]:.2f}%</div>', unsafe_allow_html=True)
+        st.metric("Pneumonia", f"{class_probabilities['Pneumonia']:.1f}%")
 
 def main():
-    # Add image to sidebar
+    # Sidebar
     st.sidebar.image(
         "https://static.vecteezy.com/system/resources/thumbnails/060/046/568/small_2x/melancholic-gorgeous-doctor-examining-x-ray-no-background-with-transparent-background-luxury-free-png.png",
         use_container_width=True,
         caption="AI-Powered X-ray Analysis"
     )
     
-    # Main header
-    st.markdown('<h1 class="main-header">🩺 COVID-19 X-ray Classifier🫁🩻</h1>', unsafe_allow_html=True)
+    with st.sidebar.expander("📈 Model Performance"):
+        st.markdown("""
+        *Test Results:*
+        - Overall Accuracy: 95.38%
+        - COVID-19: 92.08% Precision
+        - Normal: 96.35% Precision
+        - Pneumonia: 96.86% Precision
+        """)
     
-    # Load model and encoder
+    # Main header
+    st.markdown('<h1 class="main-header">🩺 COVID-19 & Pneumonia X-ray Classifier</h1>', unsafe_allow_html=True)
+    
+    # Load model
     model, label_encoder = load_model_and_encoder()
     
     if model is None or label_encoder is None:
-        st.error("❌ Failed to load model files. Please refresh the page to try again.")
-        st.info("💡 Make sure you have a stable internet connection for downloading the model files.")
+        st.error("❌ Could not load model files. Please try refreshing the page.")
         return
     
     # File uploader
-    st.header("📤 Upload X-ray Image")
+    st.markdown("<h3 style='text-align: center;'>📤 Upload X-ray Image</h3>", unsafe_allow_html=True)
     uploaded_file = st.file_uploader(
         "Choose a chest X-ray image...",
         type=['png', 'jpg', 'jpeg'],
-        help="Upload a clear chest X-ray image for analysis"
+        label_visibility="collapsed"
     )
     
     if uploaded_file is not None:
-        # Create two columns for image display and results
         col1, col2 = st.columns([1, 1])
         
         with col1:
-            # Display uploaded image with fixed height
             st.subheader("📸 Uploaded Image")
             image = Image.open(uploaded_file)
-            # Resize image for preview (maintaining aspect ratio)
-            max_height = 300
-            width_percent = (max_height / float(image.size[1]))
-            new_width = int((float(image.size[0]) * float(width_percent)))
-            image = image.resize((new_width, max_height), Image.Resampling.LANCZOS)
-            st.image(image, caption="Uploaded X-ray", use_container_width=False, width=350)
+            st.image(image, caption="Uploaded X-ray", use_container_width=True)
         
         with col2:
-            # Make prediction
             st.subheader("🔍 Analysis Results")
             
-            with st.spinner("Analyzing X-ray image..."):
+            with st.spinner("Analyzing..."):
                 try:
-                    # Preprocess image
-                    image_input, processed_image = preprocess_image(image)
-                    
-                    # Make prediction
+                    image_input, _ = preprocess_image(image)
                     predicted_label, confidence_score, class_probabilities = predict_image(
                         model, label_encoder, image_input
                     )
-                    
-                    # Display results
                     display_prediction_result(predicted_label, confidence_score, class_probabilities)
-                    
                 except Exception as e:
                     st.error(f"❌ Error processing image: {str(e)}")
         
-        # Additional information
-        st.header("⚠ Important Disclaimer")
+        # Disclaimer
         st.warning("""
-        **Medical Disclaimer:** This AI tool is for educational and research purposes only. 
-        It should NOT be used as a substitute for professional medical advice, diagnosis, or treatment. 
-        Always consult with qualified healthcare professionals for medical decisions.
+        *Medical Disclaimer:* This tool is for educational purposes only. 
+        Not a substitute for professional medical advice. Always consult healthcare professionals.
         """)
-        
-        # Model performance metrics
-        with st.expander("📈 Model Performance Metrics"):
-            st.markdown("""
-            **Test Set Results:**
-            - **Overall Accuracy:** 95.38%
-            - **COVID-19:** Precision: 92.08%, Recall: 91.70%
-            - **Normal:** Precision: 96.35%, Recall: 97.16%
-            - **Pneumonia:** Precision: 96.86%, Recall: 91.82%
-            
-            The model was trained on 15,153 images and tested on 3,031 images.
-            """)
 
-if __name__ == "__main__":
+if _name_ == "_main_":
     main()
